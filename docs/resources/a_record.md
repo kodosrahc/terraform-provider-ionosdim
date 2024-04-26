@@ -18,15 +18,15 @@ description: |-
 ### Required
 
 - `ip` (String)
-- `name` (String)
+- `name` (String) the fqdn of the RR or the relative name if zone was specified
 
 ### Optional
 
 - `comment` (String)
-- `layer3domain` (String)
+- `layer3domain` (String) value is optional when specifying a RR if there is only one RR with that name, type and value
 - `ttl` (Number)
 - `view` (String)
-- `zone` (String)
+- `zone` (String) optional if name is a fqdn
 
 ### Read-Only
 

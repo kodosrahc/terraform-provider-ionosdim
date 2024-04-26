@@ -37,7 +37,6 @@ type ipResource struct {
 type ipResourceModel struct {
 	ID           types.String `tfsdk:"id"`
 	Ip           types.String `tfsdk:"ip"`
-	Cidr         types.String `tfsdk:"cidr"`
 	Layer3domain types.String `tfsdk:"layer3domain"`
 
 	Created     types.String `tfsdk:"created"` // no created_by field!
@@ -49,6 +48,8 @@ type ipResourceModel struct {
 	ReverseZone types.String `tfsdk:"reverse_zone"`
 	Status      types.String `tfsdk:"status"`
 	Subnet      types.String `tfsdk:"subnet"`
+
+	Comment types.String `tfsdk:"comment"`
 }
 
 func (rm ipResourceModel) composeID() string {
@@ -56,14 +57,21 @@ func (rm ipResourceModel) composeID() string {
 	return rm.Layer3domain.ValueString() + "/" + rm.Ip.ValueString()
 }
 
+func (rm ipResourceModel) parseID() (string, string, error) {
+	idParts := strings.SplitN(rm.ID.ValueString(), "/", 2)
+	if len(idParts) != 2 {
+		return "", "", fmt.Errorf("ID is not in expected format")
+	}
+	return idParts[0], idParts[1], nil
+}
+
 func (rm *ipResourceModel) readInDimResponse(dimResp map[string]any) {
 
-	// not Computed, make no sense to read from dimResp
-	// if v, ok := dimResp["layer3domain"]; ok {
-	// 	rm.Layer3domain = types.StringValue(v.(string))
-	// }
 	if v, ok := dimResp["ip"]; ok {
 		rm.Ip = types.StringValue(v.(string))
+	}
+	if v, ok := dimResp["layer3domain"]; ok {
+		rm.Layer3domain = types.StringValue(v.(string))
 	}
 
 	if v, ok := dimResp["created"]; ok {
@@ -95,6 +103,10 @@ func (rm *ipResourceModel) readInDimResponse(dimResp map[string]any) {
 		rm.Status = types.StringValue(v.(string))
 	}
 
+	if v, ok := dimResp["comment"]; ok {
+		rm.Comment = types.StringValue(v.(string))
+	}
+
 }
 
 func (r *ipResource) diagErrorSummaryTemplate() string {
@@ -110,7 +122,7 @@ func (r *ipResource) diagWarningSummaryTemplate() string {
 }
 
 func (r *ipResource) dimRawCall(ctx context.Context, tfAction string, dfunc string, dargs []any, diags *diag.Diagnostics) (any, error) {
-	tflog.Debug(ctx, fmt.Sprintf("%s/%s call", tfAction, dfunc), map[string]any{"func": dfunc, "args": dargs})
+	tflog.Debug(ctx, fmt.Sprintf("ip/%s dim-call", tfAction), map[string]any{"func": dfunc, "args": dargs})
 	dimResp, err := r.client.RawCall(dfunc, dargs)
 	if err != nil {
 		diags.AddError(
@@ -119,7 +131,7 @@ func (r *ipResource) dimRawCall(ctx context.Context, tfAction string, dfunc stri
 		)
 		return nil, err
 	}
-	tflog.Debug(ctx, fmt.Sprintf("%s/%s response", tfAction, dfunc), map[string]any{"dimResponse": dimResp})
+	tflog.Debug(ctx, fmt.Sprintf("ip/%s dim-response", tfAction), map[string]any{"dimResponse": dimResp})
 	return dimResp, nil
 }
 
@@ -151,6 +163,10 @@ func (r *ipResource) Metadata(_ context.Context, req resource.MetadataRequest, r
 // Schema defines the schema for the resource.
 func (r *ipResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
+		MarkdownDescription: "Allocates an ip address from the pool (i.e. set `status` to `Static`).\n" +
+			" - If the `ip` argument left unspecified," +
+			" it will allocate the next free (`status` = `Available`) ip address from the pool;\n" +
+			" - If `ip` is specified, it must be free (`status` = `Available` ) upon resource creation.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Computed: true,
@@ -158,26 +174,32 @@ func (r *ipResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
+
 			"ip": schema.StringAttribute{
 				Optional: true,
 				Computed: true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.UseStateForUnknown(),
 				},
+				MarkdownDescription: "The pool where the IP address is allocated.",
 			},
-			"cidr": schema.StringAttribute{
+			"pool": schema.StringAttribute{
 				Required: true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
+				MarkdownDescription: "The pool where the IP address is allocated.",
 			},
-			"layer3domain": schema.StringAttribute{
-				Optional: true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
+			"comment": schema.StringAttribute{
+				Optional:            true,
+				MarkdownDescription: "The comment to the allocated IP address",
 			},
 
+			"layer3domain": schema.StringAttribute{
+				Computed:            true,
+				MarkdownDescription: "The layer 3 domain where the IP address is allocated.",
+			},
 			"created": schema.StringAttribute{
 				Computed: true,
 			},
@@ -193,15 +215,18 @@ func (r *ipResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 			"modified_by": schema.StringAttribute{
 				Computed: true,
 			},
-			"pool": schema.StringAttribute{
-				//Optional: true,
-				Computed: true,
-			},
 			"reverse_zone": schema.StringAttribute{
 				Computed: true,
 			},
 			"status": schema.StringAttribute{
 				Computed: true,
+				MarkdownDescription: "the known status values are:\n" +
+					"  - `Static` a single allocated IP address\n" +
+					"  - `Available` a single free IP address\n" +
+					"  - `Reserved` a reserved single IP address (for example the IPv4 network and broadcast addresses in a Subnet)\n" +
+					"  - `Container` a generic status for blocks larger than subnets\n" +
+					"  - `Delegation` the block is used for a specific purpose (ex: a server)\n" +
+					"  - `Subnet` a subnet (can only have Delegation, Static, Reserved or Available children)",
 			},
 			"subnet": schema.StringAttribute{
 				//Optional: true,
@@ -214,45 +239,67 @@ func (r *ipResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 // Create creates the resource and sets the initial Terraform state.
 func (r *ipResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 
-	//
 	// Create a new resource.
-	// Retrieve values from plan
-	var plan ipResourceModel
-	diags := req.Plan.Get(ctx, &plan)
+	// Retrieve values from data
+	var data ipResourceModel
+	diags := req.Plan.Get(ctx, &data)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	dim_req_args := map[string]any{}
+	dim_req_named_args := map[string]any{}
 
-	if !plan.Layer3domain.IsNull() {
-		dim_req_args["layer3domain"] = plan.Layer3domain.ValueString()
-		ctx = tflog.SetField(ctx, "layer3domain", plan.Layer3domain.ValueString())
+	if !data.Comment.IsNull() {
+		dim_req_named_args["attributes"] = map[string]any{"comment": data.Comment.ValueString()}
 	}
 
 	var dimResp any
 
-	if plan.Ip.IsUnknown() {
-		ctx = tflog.SetField(ctx, "cidr", plan.Cidr.ValueString())
-		dimResp, _ = r.dimRawCall(ctx, "Create", "ipblock_get_ip", []any{plan.Cidr.ValueString(), dim_req_args}, &resp.Diagnostics)
+	if data.Ip.IsUnknown() {
+		// will get a free IP from the pool
+		dimResp, _ = r.dimRawCall(ctx, "Create",
+			"ippool_get_ip",
+			[]any{
+				data.Pool.ValueString(),
+				dim_req_named_args,
+			},
+			&resp.Diagnostics,
+		)
 	} else {
-		ctx = tflog.SetField(ctx, "ip", plan.Ip.ValueString())
-		dimResp, _ = r.dimRawCall(ctx, "Create", "ip_mark", []any{plan.Ip.ValueString(), dim_req_args}, &resp.Diagnostics)
+		// will reserve the specific IP checking:
+		// 1) that it's within the pool
+		// 2) that it's a host
+		// 3) although doc specifies that status might be checked,
+		//    specifying the status returns error "ip_mark error (19): Unknown options: status"
+		//    so it's not set here. But ip_mark refuses to make Static the addresss
+		//    which is alrady static, so we are safe.
+		dim_req_named_args["pool"] = data.Pool.ValueString()
+		dim_req_named_args["host"] = true
+		dimResp, _ = r.dimRawCall(ctx, "Create",
+			"ip_mark",
+			[]any{
+				data.Ip.ValueString(),
+				dim_req_named_args,
+			},
+			&resp.Diagnostics,
+		)
 	}
 
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	tflog.Info(ctx, "IP has been made static", dim_req_args)
-
-	plan.readInDimResponse(dimResp.(map[string]any))
+	data.readInDimResponse(dimResp.(map[string]any))
+	tflog.Info(ctx, "IP has been made static", map[string]any{
+		"layer3domain": data.Layer3domain.ValueString(),
+		"ip":           data.Ip.ValueString(),
+	})
 	// now when we know the all values, set the ID
-	plan.ID = types.StringValue(plan.composeID())
+	data.ID = types.StringValue(data.composeID())
 
 	// Set state to fully populated data
-	diags = resp.State.Set(ctx, plan)
+	diags = resp.State.Set(ctx, data)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -262,33 +309,32 @@ func (r *ipResource) Create(ctx context.Context, req resource.CreateRequest, res
 
 // Read refreshes the Terraform state with the latest data.
 func (r *ipResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	// Get current state
-	var state ipResourceModel
-	diags := req.State.Get(ctx, &state)
+	// Get current data
+	var data ipResourceModel
+	diags := req.State.Get(ctx, &data)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	idParts := strings.SplitN(state.ID.ValueString(), "/", 2)
-	if len(idParts) != 2 {
+
+	layer3domain, ip, err := data.parseID()
+	if err != nil {
 		resp.Diagnostics.AddError(
 			fmt.Sprintf(r.diagErrorSummaryTemplate(), "Read"),
-			"ID is not in expected format",
+			err.Error(),
 		)
 		return
 	}
 
 	dim_req_args := map[string]any{
 		"host":         true,
-		"layer3domain": idParts[0],
+		"layer3domain": layer3domain,
 	}
 
-	ctx = tflog.SetField(ctx, "cidr", idParts[1])
-	tflog.Info(ctx, "Will read IP", dim_req_args)
-	dimResp, _ := r.dimRawCall(
-		ctx, "Read", "ipblock_get_attrs",
+	dimResp, _ := r.dimRawCall(ctx, "Read",
+		"ipblock_get_attrs",
 		[]any{
-			idParts[1], // cidr
+			ip,
 			dim_req_args,
 		},
 		&resp.Diagnostics,
@@ -296,26 +342,38 @@ func (r *ipResource) Read(ctx context.Context, req resource.ReadRequest, resp *r
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	state.readInDimResponse(dimResp.(map[string]any))
+	data.readInDimResponse(dimResp.(map[string]any))
 
-	if state.ID.ValueString() != state.composeID() {
+	if data.ID.ValueString() != data.composeID() {
 		resp.Diagnostics.AddError(
 			fmt.Sprintf(r.diagErrorSummaryTemplate(), "Read"),
-			fmt.Sprintf("ID has changed, old=%s, new=%s", state.ID.ValueString(), state.composeID()),
+			fmt.Sprintf("ID has changed, old=%s, new=%s", data.ID.ValueString(), data.composeID()),
 		)
 		return
 	}
-	if state.Status.ValueString() != "Static" {
-		resp.Diagnostics.AddError(
-			fmt.Sprintf(r.diagErrorSummaryTemplate(), "Read"),
-			"IP is not in Static state",
-		)
+
+	// terraform recommends call State.RemoveResource if the resource no longer exists, see:
+	// https://developer.hashicorp.com/terraform/plugin/framework/resources/read#recommendations
+	//
+	// originally:
+	// if data.Status.ValueString() != "Static" {
+	// 	resp.Diagnostics.AddError(
+	// 		fmt.Sprintf(r.diagErrorSummaryTemplate(), "Read"),
+	// 		"IP is not in Static state",
+	// 	)
+	// 	return
+	// }
+	if data.Status.ValueString() != "Static" {
+		resp.State.RemoveResource(ctx)
 		return
 	}
-	tflog.Info(ctx, "IP has been read", dim_req_args)
 
+	tflog.Info(ctx, "IP has been read", map[string]any{
+		"layer3domain": data.Layer3domain.ValueString(),
+		"ip":           data.Ip.ValueString(),
+	})
 	// Set refreshed state
-	diags = resp.State.Set(ctx, &state)
+	diags = resp.State.Set(ctx, &data)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -326,36 +384,96 @@ func (r *ipResource) Read(ctx context.Context, req resource.ReadRequest, resp *r
 
 // Update updates the resource and sets the updated Terraform state on success.
 func (r *ipResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-}
 
-// Delete deletes the resource and removes the Terraform state on success.
-func (r *ipResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-
-	// Retrieve values from state
-	var state ipResourceModel
-	diags := req.State.Get(ctx, &state)
+	var data ipResourceModel
+	diags := req.Plan.Get(ctx, &data)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	idParts := strings.SplitN(state.ID.ValueString(), "/", 2)
-	if len(idParts) != 2 {
+	layer3domain, ip, _ := data.parseID() // well we know it's valid, so no need to check the error
+
+	opts := map[string]any{
+		"host":         true,
+		"layer3domain": layer3domain,
+		"pool":         data.Pool.ValueString(),
+	}
+
+	_, _ = r.dimRawCall(ctx, "Update",
+		"ipblock_set_attrs",
+		[]any{
+			ip,
+			// attributes
+			map[string]any{
+				"comment": data.Comment.ValueString(),
+			},
+			// options
+			opts,
+		}, &resp.Diagnostics)
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	tflog.Info(ctx, "IP has been updated", map[string]any{
+		"layer3domain": layer3domain,
+		"ip":           ip,
+	})
+
+	// Read the updated attrs
+
+	dimResp, _ := r.dimRawCall(ctx, "Update",
+		"ipblock_get_attrs",
+		[]any{
+			ip,
+			opts,
+		},
+		&resp.Diagnostics,
+	)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	data.readInDimResponse(dimResp.(map[string]any))
+
+	diags = resp.State.Set(ctx, data)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+}
+
+// Delete deletes the resource and removes the Terraform state on success.
+func (r *ipResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+
+	// Retrieve values from data
+	var data ipResourceModel
+	diags := req.State.Get(ctx, &data)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	layer3domain, ip, err := data.parseID()
+	if err != nil {
 		resp.Diagnostics.AddError(
 			fmt.Sprintf(r.diagErrorSummaryTemplate(), "Delete"),
-			"ID is not in expected format",
+			err.Error(),
 		)
 		return
 	}
 
 	dim_req_args := map[string]any{
-		"layer3domain": idParts[0],
+		"layer3domain": layer3domain,
+		"host":         true,
+		"pool":         data.Pool.ValueString(),
 	}
 
-	dimResp, _ := r.dimRawCall(
-		ctx, "Delete", "ip_free",
+	dimResp, _ := r.dimRawCall(ctx, "Delete",
+		"ip_free",
 		[]any{
-			idParts[1], // cidr
+			ip,
 			dim_req_args,
 		},
 		&resp.Diagnostics,

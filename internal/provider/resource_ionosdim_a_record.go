@@ -155,12 +155,14 @@ func (r *aRecordResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
+				MarkdownDescription: "the fqdn of the RR or the relative name if zone was specified",
 			},
 			"layer3domain": schema.StringAttribute{
 				Optional: true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
+				MarkdownDescription: "value is optional when specifying a RR if there is only one RR with that name, type and value",
 			},
 			"zone": schema.StringAttribute{
 				Optional: true,
@@ -168,6 +170,7 @@ func (r *aRecordResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
+				MarkdownDescription: "optional if name is a fqdn",
 			},
 			"view": schema.StringAttribute{
 				Optional: true,
