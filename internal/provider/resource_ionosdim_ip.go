@@ -188,7 +188,7 @@ func (r *ipResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 					stringplanmodifier.RequiresReplace(),
 					stringplanmodifier.UseStateForUnknown(),
 				},
-				MarkdownDescription: "The pool where the IP address is allocated.",
+				MarkdownDescription: "If specified, this address will be allocated. The address must be within the `pool` specified. If not set, an available address will be allocated from the pool.",
 			},
 			"pool": schema.StringAttribute{
 				Required: true,
