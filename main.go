@@ -37,7 +37,7 @@ func main() {
 
 	opts := providerserver.ServeOpts{
 		// TODO: Update this string with the published name of your provider.
-		Address: "kodosrahc/ionosdim",
+		Address: "registry.terraform.io/kodosrahc/ionosdim",
 		Debug:   debug,
 	}
 
