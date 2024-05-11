@@ -26,7 +26,7 @@ Allocates an ip address from the pool (i.e. set `status` to `Static`).
 ### Optional
 
 - `comment` (String) The comment to the allocated IP address
-- `ip` (String) The pool where the IP address is allocated.
+- `ip` (String) If specified, this address will be allocated. The address must be within the `pool` specified. If not set, an available address will be allocated from the pool.
 
 ### Read-Only
 
