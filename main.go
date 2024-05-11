@@ -37,7 +37,7 @@ func main() {
 
 	opts := providerserver.ServeOpts{
 		// TODO: Update this string with the published name of your provider.
-		Address: "ionos.com/aislab/ionosdim",
+		Address: "kodosrahc/ionosdim",
 		Debug:   debug,
 	}
 

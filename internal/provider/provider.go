@@ -47,8 +47,8 @@ func (p *ionosdimProvider) Schema(ctx context.Context, req provider.SchemaReques
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"endpoint": schema.StringAttribute{
-				MarkdownDescription: "DIM endpoint, e.g. https://dim-vrps.example.com/dim",
-				Optional:            true,
+				MarkdownDescription: "DIM endpoint, e.g. https://dim.example.com/dim",
+				Required:            true,
 			},
 			"username": schema.StringAttribute{
 				Optional: true,
@@ -215,6 +215,7 @@ func (p *ionosdimProvider) Resources(ctx context.Context) []func() resource.Reso
 		NewIpResource,
 		NewARecordResource,
 		NewCNAMERecordResource,
+		NewTXTRecordResource,
 	}
 }
 
