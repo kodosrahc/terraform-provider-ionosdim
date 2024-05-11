@@ -52,21 +52,28 @@ type ipResourceModel struct {
 	Comment types.String `tfsdk:"comment"`
 }
 
+type ipID struct {
+	layer3domain string
+	ip           string
+}
+
 func (rm ipResourceModel) composeID() string {
-	//types.StringValue(_layer3domain + "/" + _ip)
+	// <layer3domain>/<ip>
 	return rm.Layer3domain.ValueString() + "/" + rm.Ip.ValueString()
 }
 
-func (rm ipResourceModel) parseID() (string, string, error) {
+func (rm ipResourceModel) parseID() (ipID, error) {
 	idParts := strings.SplitN(rm.ID.ValueString(), "/", 2)
 	if len(idParts) != 2 {
-		return "", "", fmt.Errorf("ID is not in expected format")
+		return ipID{}, fmt.Errorf("ID is not in expected format")
 	}
-	return idParts[0], idParts[1], nil
+	return ipID{
+		layer3domain: idParts[0],
+		ip:           idParts[1],
+	}, nil
 }
 
 func (rm *ipResourceModel) readInDimResponse(dimResp map[string]any) {
-
 	if v, ok := dimResp["ip"]; ok {
 		rm.Ip = types.StringValue(v.(string))
 	}
@@ -106,7 +113,6 @@ func (rm *ipResourceModel) readInDimResponse(dimResp map[string]any) {
 	if v, ok := dimResp["comment"]; ok {
 		rm.Comment = types.StringValue(v.(string))
 	}
-
 }
 
 func (r *ipResource) diagErrorSummaryTemplate() string {
@@ -317,7 +323,7 @@ func (r *ipResource) Read(ctx context.Context, req resource.ReadRequest, resp *r
 		return
 	}
 
-	layer3domain, ip, err := data.parseID()
+	id, err := data.parseID()
 	if err != nil {
 		resp.Diagnostics.AddError(
 			fmt.Sprintf(r.diagErrorSummaryTemplate(), "Read"),
@@ -325,16 +331,17 @@ func (r *ipResource) Read(ctx context.Context, req resource.ReadRequest, resp *r
 		)
 		return
 	}
+	tflog.Debug(ctx, fmt.Sprintf("ID parsed %+v", id))
 
 	dim_req_args := map[string]any{
 		"host":         true,
-		"layer3domain": layer3domain,
+		"layer3domain": id.layer3domain,
 	}
 
 	dimResp, _ := r.dimRawCall(ctx, "Read",
 		"ipblock_get_attrs",
 		[]any{
-			ip,
+			id.ip,
 			dim_req_args,
 		},
 		&resp.Diagnostics,
@@ -364,6 +371,7 @@ func (r *ipResource) Read(ctx context.Context, req resource.ReadRequest, resp *r
 	// 	return
 	// }
 	if data.Status.ValueString() != "Static" {
+		tflog.Debug(ctx, fmt.Sprintf("the status of the IP is not Static (has been released?) %+v", id))
 		resp.State.RemoveResource(ctx)
 		return
 	}
@@ -378,8 +386,6 @@ func (r *ipResource) Read(ctx context.Context, req resource.ReadRequest, resp *r
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	///
-
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
@@ -392,18 +398,18 @@ func (r *ipResource) Update(ctx context.Context, req resource.UpdateRequest, res
 		return
 	}
 
-	layer3domain, ip, _ := data.parseID() // well we know it's valid, so no need to check the error
+	id, _ := data.parseID() // well we know it's valid, so no need to check the error
 
 	opts := map[string]any{
 		"host":         true,
-		"layer3domain": layer3domain,
+		"layer3domain": id.layer3domain,
 		"pool":         data.Pool.ValueString(),
 	}
 
 	_, _ = r.dimRawCall(ctx, "Update",
 		"ipblock_set_attrs",
 		[]any{
-			ip,
+			id.ip,
 			// attributes
 			map[string]any{
 				"comment": data.Comment.ValueString(),
@@ -417,8 +423,8 @@ func (r *ipResource) Update(ctx context.Context, req resource.UpdateRequest, res
 	}
 
 	tflog.Info(ctx, "IP has been updated", map[string]any{
-		"layer3domain": layer3domain,
-		"ip":           ip,
+		"layer3domain": id.layer3domain,
+		"ip":           id.ip,
 	})
 
 	// Read the updated attrs
@@ -426,7 +432,7 @@ func (r *ipResource) Update(ctx context.Context, req resource.UpdateRequest, res
 	dimResp, _ := r.dimRawCall(ctx, "Update",
 		"ipblock_get_attrs",
 		[]any{
-			ip,
+			id.ip,
 			opts,
 		},
 		&resp.Diagnostics,
@@ -446,7 +452,6 @@ func (r *ipResource) Update(ctx context.Context, req resource.UpdateRequest, res
 
 // Delete deletes the resource and removes the Terraform state on success.
 func (r *ipResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-
 	// Retrieve values from data
 	var data ipResourceModel
 	diags := req.State.Get(ctx, &data)
@@ -455,7 +460,7 @@ func (r *ipResource) Delete(ctx context.Context, req resource.DeleteRequest, res
 		return
 	}
 
-	layer3domain, ip, err := data.parseID()
+	id, err := data.parseID()
 	if err != nil {
 		resp.Diagnostics.AddError(
 			fmt.Sprintf(r.diagErrorSummaryTemplate(), "Delete"),
@@ -465,7 +470,7 @@ func (r *ipResource) Delete(ctx context.Context, req resource.DeleteRequest, res
 	}
 
 	dim_req_args := map[string]any{
-		"layer3domain": layer3domain,
+		"layer3domain": id.layer3domain,
 		"host":         true,
 		"pool":         data.Pool.ValueString(),
 	}
@@ -473,7 +478,7 @@ func (r *ipResource) Delete(ctx context.Context, req resource.DeleteRequest, res
 	dimResp, _ := r.dimRawCall(ctx, "Delete",
 		"ip_free",
 		[]any{
-			ip,
+			id.ip,
 			dim_req_args,
 		},
 		&resp.Diagnostics,
