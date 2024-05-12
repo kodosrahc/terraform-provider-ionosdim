@@ -66,10 +66,10 @@ resource "ionosdim_cname_record" "ip_01_catchall_cname_record" {
 
 ### Required
 
-- `endpoint` (String) DIM endpoint, e.g. https://dim.example.com/dim
+- `endpoint` (String) DIM endpoint, e.g. https://dim.example.com/dim . Can be sourced from `IONOSDIM_ENDPOINT` environment variable.
 
 ### Optional
 
-- `password` (String, Sensitive)
-- `token` (String, Sensitive)
-- `username` (String)
+- `password` (String, Sensitive) DIM user password, it is ignored if `token` is specified. Can be sourced from `IONOSDIM_PASSWORD` environment variable.
+- `token` (String, Sensitive) DIM token. Can be sourced from `IONOSDIM_TOKEN` environment variable.
+- `username` (String) DIM username, it is ignored if `token` is specified. Can be sourced from `IONOSDIM_USERNAME` environment variable.

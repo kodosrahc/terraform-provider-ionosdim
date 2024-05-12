@@ -107,7 +107,7 @@ func (d *aRecordSetDataSource) Read(ctx context.Context, req datasource.ReadRequ
 	}
 
 	host := config.Host.ValueString()
-	dimRes, err := d.client.RawCall("rr_list", []interface{}{dim_req_args})
+	dimRes, err := d.client.RawCallWithContext(ctx, "rr_list", []interface{}{dim_req_args})
 	if err != nil {
 		resp.Diagnostics.AddError(fmt.Sprintf("error looking up A records for %q: ", host), err.Error())
 		return
