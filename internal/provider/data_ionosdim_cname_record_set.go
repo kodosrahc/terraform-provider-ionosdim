@@ -76,7 +76,7 @@ func (d *cnameRecordSetDataSource) Read(ctx context.Context, req datasource.Read
 	}
 
 	host := state.Host.ValueString()
-	dimRes, err := d.client.RawCall("rr_list", []interface{}{map[string]interface{}{
+	dimRes, err := d.client.RawCallWithContext(ctx, "rr_list", []interface{}{map[string]interface{}{
 		"type":    "CNAME",
 		"pattern": host,
 		"fields":  true,

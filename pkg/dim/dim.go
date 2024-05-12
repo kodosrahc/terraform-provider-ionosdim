@@ -2,6 +2,7 @@ package dim
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"golang.org/x/net/context/ctxhttp"
 )
 
 type Client struct {
@@ -42,6 +44,10 @@ type rawResponseError struct {
 //type Response interface{}
 
 func NewClient(endpoint, token, username, password *string, logger log.Logger) (*Client, error) {
+	return NewClientWithContext(context.Background(), endpoint, token, username, password, logger)
+}
+
+func NewClientWithContext(ctx context.Context, endpoint, token, username, password *string, logger log.Logger) (*Client, error) {
 
 	c := Client{
 		httpClient: &http.Client{Timeout: 10 * time.Second},
@@ -56,7 +62,7 @@ func NewClient(endpoint, token, username, password *string, logger log.Logger) (
 
 	// do login if we have no token
 	if c.token == "" {
-		err := c.doLogin()
+		err := c.doLoginWithContext(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("could not login to DIM, %s", err)
 		}
@@ -88,7 +94,7 @@ func (c *Client) doRequest(req *http.Request) ([]byte, error) {
 }
 
 // obtains token (session cookie) from DIM
-func (c *Client) doLogin() error {
+func (c *Client) doLoginWithContext(ctx context.Context) error {
 	if c.auth.Username == "" || c.auth.Password == "" {
 		return fmt.Errorf("define username and password")
 	}
@@ -97,7 +103,7 @@ func (c *Client) doLogin() error {
 	form.Add("username", c.auth.Username)
 	form.Add("password", c.auth.Password)
 
-	res, err := c.httpClient.PostForm(fmt.Sprintf("%s/login", c.endpoint), form)
+	res, err := ctxhttp.PostForm(ctx, c.httpClient, fmt.Sprintf("%s/login", c.endpoint), form)
 	if err != nil {
 		return err
 	}
@@ -119,6 +125,10 @@ func (c *Client) doLogin() error {
 }
 
 func (c *Client) RawCall(function string, args interface{}) (any, error) {
+	return c.RawCallWithContext(context.Background(), function, args)
+}
+
+func (c *Client) RawCallWithContext(ctx context.Context, function string, args interface{}) (any, error) {
 
 	/*
 		if rArgs := reflect.ValueOf(args); rArgs.Kind() == reflect.Struct {
@@ -136,7 +146,7 @@ func (c *Client) RawCall(function string, args interface{}) (any, error) {
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s/jsonrpc", c.endpoint), buf)
+	req, err := http.NewRequestWithContext(ctx, "POST", fmt.Sprintf("%s/jsonrpc", c.endpoint), buf)
 	if err != nil {
 		return nil, err
 	}

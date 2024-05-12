@@ -129,7 +129,7 @@ func (r *ipResource) diagWarningSummaryTemplate() string {
 
 func (r *ipResource) dimRawCall(ctx context.Context, tfAction string, dfunc string, dargs []any, diags *diag.Diagnostics) (any, error) {
 	tflog.Debug(ctx, fmt.Sprintf("ip/%s dim-call", tfAction), map[string]any{"func": dfunc, "args": dargs})
-	dimResp, err := r.client.RawCall(dfunc, dargs)
+	dimResp, err := r.client.RawCallWithContext(ctx, dfunc, dargs)
 	if err != nil {
 		diags.AddError(
 			fmt.Sprintf(r.diagErrorSummaryTemplate(), tfAction),

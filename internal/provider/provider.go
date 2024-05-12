@@ -47,19 +47,22 @@ func (p *ionosdimProvider) Schema(ctx context.Context, req provider.SchemaReques
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"endpoint": schema.StringAttribute{
-				MarkdownDescription: "DIM endpoint, e.g. https://dim.example.com/dim",
+				MarkdownDescription: "DIM endpoint, e.g. https://dim.example.com/dim . Can be sourced from `IONOSDIM_ENDPOINT` environment variable.",
 				Required:            true,
 			},
 			"username": schema.StringAttribute{
-				Optional: true,
+				MarkdownDescription: "DIM username, it is ignored if `token` is specified. Can be sourced from `IONOSDIM_USERNAME` environment variable.",
+				Optional:            true,
 			},
 			"password": schema.StringAttribute{
-				Optional:  true,
-				Sensitive: true,
+				MarkdownDescription: "DIM user password, it is ignored if `token` is specified. Can be sourced from `IONOSDIM_PASSWORD` environment variable.",
+				Optional:            true,
+				Sensitive:           true,
 			},
 			"token": schema.StringAttribute{
-				Optional:  true,
-				Sensitive: true,
+				MarkdownDescription: "DIM token. Can be sourced from `IONOSDIM_TOKEN` environment variable.",
+				Optional:            true,
+				Sensitive:           true,
 			},
 		},
 	}
@@ -191,7 +194,7 @@ func (p *ionosdimProvider) Configure(ctx context.Context, req provider.Configure
 	ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "password", "token")
 	tflog.Debug(ctx, "Creating IonosDim API Client")
 	// Create a new HashiCups client using the configuration values
-	client, err := dim.NewClient(&endpoint, &token, &username, &password, nil)
+	client, err := dim.NewClientWithContext(ctx, &endpoint, &token, &username, &password, nil)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to Create IonosDim API Client",
