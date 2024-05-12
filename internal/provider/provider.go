@@ -48,7 +48,7 @@ func (p *ionosdimProvider) Schema(ctx context.Context, req provider.SchemaReques
 		Attributes: map[string]schema.Attribute{
 			"endpoint": schema.StringAttribute{
 				MarkdownDescription: "DIM endpoint, e.g. https://dim.example.com/dim . Can be sourced from `IONOSDIM_ENDPOINT` environment variable.",
-				Required:            true,
+				Optional:            true,
 			},
 			"username": schema.StringAttribute{
 				MarkdownDescription: "DIM username, it is ignored if `token` is specified. Can be sourced from `IONOSDIM_USERNAME` environment variable.",
