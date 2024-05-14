@@ -203,17 +203,29 @@ func (r *ipResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 			},
 
 			"layer3domain": schema.StringAttribute{
-				Computed:            true,
+				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 				MarkdownDescription: "The layer 3 domain where the IP address is allocated.",
 			},
 			"created": schema.StringAttribute{
 				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"gateway": schema.StringAttribute{
 				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"mask": schema.StringAttribute{
 				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"modified": schema.StringAttribute{
 				Computed: true,
@@ -226,6 +238,9 @@ func (r *ipResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 			},
 			"status": schema.StringAttribute{
 				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 				MarkdownDescription: "the known status values are:\n" +
 					"  - `Static` a single allocated IP address\n" +
 					"  - `Available` a single free IP address\n" +
@@ -237,6 +252,9 @@ func (r *ipResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *r
 			"subnet": schema.StringAttribute{
 				//Optional: true,
 				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 		},
 	}
