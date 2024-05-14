@@ -249,6 +249,7 @@ func (r *txtRecordResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				Computed: true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.UseStateForUnknown(),
 				},
 				MarkdownDescription: "optional if name is a fqdn",
 			},
@@ -276,9 +277,15 @@ func (r *txtRecordResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 
 			"created": schema.StringAttribute{
 				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"created_by": schema.StringAttribute{
 				Computed: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"modified": schema.StringAttribute{
 				Computed: true,
