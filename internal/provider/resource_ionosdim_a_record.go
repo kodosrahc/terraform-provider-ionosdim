@@ -357,7 +357,7 @@ func (r *aRecordResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 	// optional
 	if !(data.View.IsNull() || data.View.IsUnknown()) {
-		dim_req_args["view"] = id.view
+		dim_req_args["views"] = []string{id.view} // rr_create takes a list
 	}
 	// optional
 	if !data.Comment.IsNull() {
@@ -383,6 +383,11 @@ func (r *aRecordResource) Create(ctx context.Context, req resource.CreateRequest
 	//rr_get_attrs
 	// rr_get_attrs accepts the subset of the args of rr_create
 	// so to reuse them, we will remove some of them
+	// rr_get_attrs takes a single "view", not the "views" list
+	delete(dim_req_args, "views")
+	if !(data.View.IsNull() || data.View.IsUnknown()) {
+		dim_req_args["view"] = id.view
+	}
 	delete(dim_req_args, "ttl")
 	delete(dim_req_args, "comment")
 	delete(dim_req_args, "zone")
@@ -573,7 +578,7 @@ func (r *aRecordResource) Delete(ctx context.Context, req resource.DeleteRequest
 		dim_req_args["zone"] = id.zone
 	}
 	if id.view != "" {
-		dim_req_args["view"] = id.view
+		dim_req_args["views"] = []string{id.view} // rr_delete takes a list
 	}
 	if id.layer3domain != "" {
 		dim_req_args["layer3domain"] = id.layer3domain
