@@ -336,7 +336,7 @@ func (r *txtRecordResource) Create(ctx context.Context, req resource.CreateReque
 	}
 	// optional
 	if !(data.View.IsNull() || data.View.IsUnknown()) {
-		dim_req_args["view"] = id.view
+		dim_req_args["views"] = []string{id.view} // rr_create takes a list
 	}
 	// optional
 	if !(data.Comment.IsNull() || data.Comment.IsUnknown()) {
@@ -362,6 +362,11 @@ func (r *txtRecordResource) Create(ctx context.Context, req resource.CreateReque
 	//rr_get_attrs
 	// rr_get_attrs accepts the subset of the args of rr_create
 	// so to reuse request args, we will remove some of them
+	// rr_get_attrs takes a single "view", not the "views" list
+	delete(dim_req_args, "views")
+	if !(data.View.IsNull() || data.View.IsUnknown()) {
+		dim_req_args["view"] = id.view
+	}
 	delete(dim_req_args, "ttl")
 	delete(dim_req_args, "comment")
 	delete(dim_req_args, "zone")
@@ -547,7 +552,7 @@ func (r *txtRecordResource) Delete(ctx context.Context, req resource.DeleteReque
 		dim_req_args["zone"] = id.zone
 	}
 	if id.view != "" {
-		dim_req_args["view"] = id.view
+		dim_req_args["views"] = []string{id.view} // rr_delete takes a list
 	}
 	// delete specific args
 	dim_req_args["references"] = "warn"

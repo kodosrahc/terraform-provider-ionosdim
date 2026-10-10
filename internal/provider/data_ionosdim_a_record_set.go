@@ -50,7 +50,7 @@ func (d *aRecordSetDataSource) Schema(_ context.Context, _ datasource.SchemaRequ
 		Description: "Use this data source to get DNS A records of the host.",
 		Attributes: map[string]schema.Attribute{
 			"zone": schema.StringAttribute{
-				Required:    true,
+				Optional:    true,
 				Description: "Zone.",
 			},
 			"view": schema.StringAttribute{
